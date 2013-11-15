@@ -8,28 +8,21 @@ using System.Configuration;
 using log4net.Core;
 using System.Data;
 using log4net.Layout;
+using log4net.Util;
 
 namespace CustomLog4netAppender
 {
     public class OracleAppender : BufferingAppenderSkeleton
 	{
-        protected bool m_usePreparedCommand;
-
         protected List<OracleAppenderParameter> m_parameters;
 
         private SecurityContext m_securityContext;
-
-        private IDbConnection m_dbConnection;
-
-        private IDbCommand m_dbCommand;
 
         private string m_connectionString;
 
         private string m_appSettingsKey;
 
         private string m_connectionStringName;
-
-        private string m_connectionType;
 
         private string m_commandText;
 
@@ -92,9 +85,6 @@ namespace CustomLog4netAppender
 		{
 			base.ActivateOptions();
 
-			// Are we using a command object
-			m_usePreparedCommand = (m_commandText != null && m_commandText.Length > 0);
-
 			if (m_securityContext == null)
 			{
 				m_securityContext = SecurityContextProvider.DefaultProvider.CreateSecurityContext(this);
@@ -103,14 +93,24 @@ namespace CustomLog4netAppender
 
 		override protected void SendBuffer(LoggingEvent[] events)
 		{
-            using (OracleConnection connection = new OracleConnection(ConnectionString))
+            try
             {
-                
+                using (OracleConnection connection = new OracleConnection(ConnectionString))
+                {
+                    connection.Open();
+
+                    using (OracleCommand command = connection.CreateCommand())
+                    {
+                        command.BindByName = true;
+                        command.CommandType = CommandType;
+                        command.CommandText = CommandText;
+                        command.ArrayBindCount = events.Length;
+
                         foreach (OracleAppenderParameter parameter in m_parameters)
                         {
                             object[] values = new object[events.Length];
 
-                            for (int i=0;i<values.Length;i++)
+                            for (int i = 0; i < values.Length; i++)
                             {
                                 LoggingEvent loggingEvent = events[i];
 
@@ -124,60 +124,34 @@ namespace CustomLog4netAppender
                                 values[i] = formatterValue;
                             }
 
+                            OracleParameter oracleParameter = command.CreateParameter();
+                            oracleParameter.DbType = parameter.DbType;
+                            oracleParameter.ParameterName = parameter.ParameterName;
+                            oracleParameter.Precision = parameter.Precision;
+                            oracleParameter.Scale = parameter.Scale;
+                            oracleParameter.Direction = ParameterDirection.Input;
 
+                            oracleParameter.Value = values;
 
-
-
-
-
-
-                using (OracleCommand command = connection.CreateCommand())
-                {
-                    command.BindByName = true;
-                    command.CommandType = CommandType;
-                    command.CommandText = CommandText;
-                    command.ArrayBindCount = events.Length;
-
-                    foreach (LoggingEvent loggingEvent in events)
-                    {
-                        foreach (OracleAppenderParameter parameters in m_parameters)
-                        {
-                            parameters.FormatValue(command, loggingEvent);
+                            command.Parameters.Add(oracleParameter);
                         }
 
-                        // Execute the query
-                        m_dbCommand.ExecuteNonQuery();
+                        command.ExecuteNonQuery();
                     }
-                            
+
+                    connection.Close();
                 }
+            }
+            catch (Exception e)
+            {
+                ErrorHandler.Error("OracleAppender error.", e);
+                throw;
             }
 		}
 
         public void AddParameter(OracleAppenderParameter parameter)
         {
             m_parameters.Add(parameter);
-        }
-
-		virtual protected string GetLogStatement(LoggingEvent logEvent)
-		{
-			if (Layout == null)
-			{
-				ErrorHandler.Error("AdoNetAppender: No Layout specified.");
-				return "";
-			}
-			else
-			{
-				StringWriter writer = new StringWriter(System.Globalization.CultureInfo.InvariantCulture);
-				Layout.Format(writer, logEvent);
-				return writer.ToString();
-			}
-		}
-        
-        virtual protected IDbConnection CreateConnection(Type connectionType, string connectionString)
-        {
-            IDbConnection connection = (IDbConnection)Activator.CreateInstance(connectionType);
-            connection.ConnectionString = connectionString;
-            return connection;
         }
 
         virtual protected string ResolveConnectionString(out string connectionStringContext)
@@ -216,79 +190,12 @@ namespace CustomLog4netAppender
             connectionStringContext = "Unable to resolve connection string from ConnectionString, ConnectionStrings, or AppSettings.";
             return string.Empty;
         }
-
-        private void InitializeDatabaseCommand()
-        {
-            if (m_dbConnection != null && m_usePreparedCommand)
-            {
-                try
-                {
-                    DisposeCommand(false);
-
-                    // Create the command object
-                    m_dbCommand = m_dbConnection.CreateCommand();
-
-                    // Set the command string
-                    m_dbCommand.CommandText = m_commandText;
-
-                    // Set the command type
-                    m_dbCommand.CommandType = m_commandType;
-                }
-                catch (Exception e)
-                {
-                    ErrorHandler.Error("Could not create database command [" + m_commandText + "]", e);
-
-                    DisposeCommand(true);
-                }
-
-                if (m_dbCommand != null)
-                {
-                    try
-                    {
-                        foreach (OracleAppenderParameter param in m_parameters)
-                        {
-                            try
-                            {
-                                param.Prepare(m_dbCommand);
-                            }
-                            catch (Exception e)
-                            {
-                                ErrorHandler.Error("Could not add database command parameter [" + param.ParameterName + "]", e);
-                                throw;
-                            }
-                        }
-                    }
-                    catch
-                    {
-                        DisposeCommand(true);
-                    }
-                }
-
-                if (m_dbCommand != null)
-                {
-                    try
-                    {
-                        // Prepare the command statement.
-                        m_dbCommand.Prepare();
-                    }
-                    catch (Exception e)
-                    {
-                        ErrorHandler.Error("Could not prepare database command [" + m_commandText + "]", e);
-
-                        DisposeCommand(true);
-                    }
-                }
-            }
-        }
 	}
 
 	public class OracleAppenderParameter
 	{
         private DbType m_dbType;
-
         private bool m_inferType;
-
-        private IRawLayout m_layout;
 
         public OracleAppenderParameter()
         {
