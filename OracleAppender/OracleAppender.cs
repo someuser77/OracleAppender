@@ -84,7 +84,7 @@ namespace CustomLog4netAppender
 		override public void ActivateOptions() 
 		{
 			base.ActivateOptions();
-
+            
 			if (m_securityContext == null)
 			{
 				m_securityContext = SecurityContextProvider.DefaultProvider.CreateSecurityContext(this);
@@ -124,19 +124,14 @@ namespace CustomLog4netAppender
                                 values[i] = formatterValue;
                             }
 
-                            OracleParameter oracleParameter = command.CreateParameter();
-                            oracleParameter.DbType = parameter.DbType;
-                            oracleParameter.ParameterName = parameter.ParameterName;
-                            oracleParameter.Precision = parameter.Precision;
-                            oracleParameter.Scale = parameter.Scale;
-                            oracleParameter.Direction = ParameterDirection.Input;
+                            OracleParameter oracleParameter = parameter.Prepare(command);
 
                             oracleParameter.Value = values;
-
-                            command.Parameters.Add(oracleParameter);
                         }
 
                         command.ExecuteNonQuery();
+
+                        // dispose of the OracleParameter(s)?
                     }
 
                     connection.Close();
@@ -152,43 +147,6 @@ namespace CustomLog4netAppender
         public void AddParameter(OracleAppenderParameter parameter)
         {
             m_parameters.Add(parameter);
-        }
-
-        virtual protected string ResolveConnectionString(out string connectionStringContext)
-        {
-            if (m_connectionString != null && m_connectionString.Length > 0)
-            {
-                connectionStringContext = "ConnectionString";
-                return m_connectionString;
-            }
-
-            if (!String.IsNullOrEmpty(m_connectionStringName))
-            {
-                ConnectionStringSettings settings = ConfigurationManager.ConnectionStrings[m_connectionStringName];
-                if (settings != null)
-                {
-                    connectionStringContext = "ConnectionStringName";
-                    return settings.ConnectionString;
-                }
-                else
-                {
-                    throw new LogException("Unable to find [" + m_connectionStringName + "] ConfigurationManager.ConnectionStrings item");
-                }
-            }
-
-            if (m_appSettingsKey != null && m_appSettingsKey.Length > 0)
-            {
-                connectionStringContext = "AppSettingsKey";
-                string appSettingsConnectionString = SystemInfo.GetAppSetting(m_appSettingsKey);
-                if (appSettingsConnectionString == null || appSettingsConnectionString.Length == 0)
-                {
-                    throw new LogException("Unable to find [" + m_appSettingsKey + "] AppSettings key.");
-                }
-                return appSettingsConnectionString;
-            }
-
-            connectionStringContext = "Unable to resolve connection string from ConnectionString, ConnectionStrings, or AppSettings.";
-            return string.Empty;
         }
 	}
 
@@ -225,33 +183,36 @@ namespace CustomLog4netAppender
 
         public IRawLayout Layout { get; set; }
 
-		virtual public void Prepare(OracleCommand command)
+        virtual public OracleParameter Prepare(OracleCommand command)
 		{
-			OracleParameter param = command.CreateParameter();
+			OracleParameter parameter = command.CreateParameter();
 
-			param.ParameterName = ParameterName;
+			parameter.ParameterName = ParameterName;
+            parameter.Direction = ParameterDirection.Input;
 
 			if (!m_inferType)
 			{
-				param.DbType = m_dbType;
+				parameter.DbType = m_dbType;
 			}
 
 			if (Precision != 0)
 			{
-                param.Precision = Precision;
+                parameter.Precision = Precision;
 			}
 
 			if (Scale != 0)
 			{
-				param.Scale = Scale;
+				parameter.Scale = Scale;
 			}
 
 			if (Size != 0)
 			{
-				param.Size = Size;
+				parameter.Size = Size;
 			}
 
-			command.Parameters.Add(param);
+			command.Parameters.Add(parameter);
+
+            return parameter;
 		}
 
 		virtual public void FormatValue(OracleCommand command, LoggingEvent loggingEvent)
