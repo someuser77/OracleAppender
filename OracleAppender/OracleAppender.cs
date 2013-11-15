@@ -28,7 +28,6 @@ namespace CustomLog4netAppender
 
 		public OracleAppender()
 		{
-			m_useTransactions = false;
 			m_commandType = System.Data.CommandType.Text;
 			m_parameters = new List<OracleAppenderParameter>();
 		}
