@@ -14,9 +14,7 @@ namespace CustomLog4netAppender
 {
     public class OracleAppender : BufferingAppenderSkeleton
 	{
-        protected List<OracleAppenderParameter> m_parameters;
-
-        private SecurityContext m_securityContext;
+        protected ICollection<OracleAppenderParameter> m_parameters;
 
         private string m_connectionString;
 
@@ -50,22 +48,6 @@ namespace CustomLog4netAppender
 			set { m_commandType = value; }
 		}
 		
-		public SecurityContext SecurityContext 
-		{
-			get { return m_securityContext; }
-			set { m_securityContext = value; }
-		}
-
-		override public void ActivateOptions() 
-		{
-			base.ActivateOptions();
-            
-			if (m_securityContext == null)
-			{
-				m_securityContext = SecurityContextProvider.DefaultProvider.CreateSecurityContext(this);
-			}
-		}
-
 		override protected void SendBuffer(LoggingEvent[] events)
 		{
             try
