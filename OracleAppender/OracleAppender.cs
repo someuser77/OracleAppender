@@ -61,8 +61,8 @@ namespace CustomLog4netAppender
                     using (OracleCommand command = connection.CreateCommand())
                     {
                         command.BindByName = true;
-                        command.CommandType = CommandType;
-                        command.CommandText = CommandText;
+                        command.CommandType = m_commandType;
+                        command.CommandText = m_commandText;
                         command.ArrayBindCount = events.Length;
 
                         foreach (OracleAppenderParameter parameter in m_parameters)
