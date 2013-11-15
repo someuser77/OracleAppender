@@ -20,15 +20,9 @@ namespace CustomLog4netAppender
 
         private string m_connectionString;
 
-        private string m_appSettingsKey;
-
-        private string m_connectionStringName;
-
         private string m_commandText;
 
         private CommandType m_commandType;
-
-        private bool m_useTransactions;
 
         private readonly static Type m_declaringType = typeof(OracleAppender);
 
@@ -44,18 +38,6 @@ namespace CustomLog4netAppender
 			get { return m_connectionString; }
 			set { m_connectionString = value; }
 		}
-
-	    public string AppSettingsKey
-	    {
-	        get { return m_appSettingsKey; }
-	        set { m_appSettingsKey = value; }
-	    }
-
-	    public string ConnectionStringName
-	    {
-	        get { return m_connectionStringName; }
-	        set { m_connectionStringName = value; }
-	    }
 		
         public string CommandText
 		{
@@ -69,12 +51,6 @@ namespace CustomLog4netAppender
 			set { m_commandType = value; }
 		}
 		
-        public bool UseTransactions
-		{
-			get { return m_useTransactions; }
-			set { m_useTransactions = value; }
-		}
-
 		public SecurityContext SecurityContext 
 		{
 			get { return m_securityContext; }
@@ -95,6 +71,8 @@ namespace CustomLog4netAppender
 		{
             try
             {
+                // Oracle transaction start only in the context of a connection. 
+                // Because a new connection is created each buffer there is no need for transactions.
                 using (OracleConnection connection = new OracleConnection(ConnectionString))
                 {
                     connection.Open();
@@ -228,7 +206,5 @@ namespace CustomLog4netAppender
 
 			param.Value = formattedValue;
 		}
-
-
 	}
 }
